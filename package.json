@@ -4,9 +4,13 @@
   "description": "Sistema de Gestión Empresarial (bodega) - Prototipo TAP AIEP",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "dev": "node src/app.js",
+    "start": "NODE_ENV=production node src/app.js",
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "express": "^4.19.2",

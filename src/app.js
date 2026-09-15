@@ -36,7 +36,12 @@ module.exports = crearApp;
 if (require.main === module) {
   const sequelize = require('./config/database');
   const app = crearApp();
+  const port = Number(process.env.PORT) || 3000;
+
   sequelize.sync().then(() => {
-    app.listen(3000, () => console.log('Servidor escuchando en puerto 3000'));
+    app.listen(port, () => console.log(`Servidor escuchando en puerto ${port}`));
+  }).catch((error) => {
+    console.error('Error al inicializar la base de datos:', error);
+    process.exit(1);
   });
 }

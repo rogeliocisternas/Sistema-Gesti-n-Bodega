@@ -1,11 +1,17 @@
+const fs = require('fs');
+const path = require('path');
 const { Sequelize } = require('sequelize');
 
-// SQLite en memoria: suficiente para el prototipo del TAP.
-// En producción esto sería PostgreSQL, según lo definido en la
-// Sección 8.2 (Descripción Detallada de la Solución) del informe.
+const isProduction = process.env.NODE_ENV === 'production';
+const dbPath = process.env.DB_PATH || (isProduction ? './data/gestion-bodega.sqlite' : ':memory:');
+
+if (dbPath !== ':memory:') {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+}
+
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: ':memory:',
+  storage: dbPath,
   logging: false
 });
 
