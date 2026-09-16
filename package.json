@@ -7,21 +7,25 @@
     "dev": "node src/app.js",
     "start": "NODE_ENV=production node src/app.js",
     "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "seed": "node scripts/seed.js",
+    "seed:reset": "node scripts/seed.js --reset",
+    "export:excel": "node scripts/export-excel.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "sequelize": "^6.37.3",
-    "sqlite3": "^5.1.7",
-    "joi": "^17.13.3",
-    "helmet": "^7.1.0",
     "express-rate-limit": "^7.4.0",
-    "jsonwebtoken": "^9.0.2"
+    "helmet": "^7.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "sequelize": "^6.37.3",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "exceljs": "^4.4.0",
     "jest": "^29.7.0",
     "supertest": "^7.0.0"
   },

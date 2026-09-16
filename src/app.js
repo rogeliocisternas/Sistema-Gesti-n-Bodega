@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
@@ -9,6 +10,7 @@ function crearApp() {
   // Seguridad aplicada (Anexo: Documentación de Seguridad)
   app.use(helmet()); // cabeceras HTTP seguras (mitiga XSS, sniffing, clickjacking)
   app.use(express.json({ limit: '1mb' })); // evita payloads excesivos
+  app.use(express.static(path.join(__dirname, '../public')));
 
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -33,15 +35,24 @@ function crearApp() {
 
 module.exports = crearApp;
 
-if (require.main === module) {
+function iniciarServidor() {
   const sequelize = require('./config/database');
   const app = crearApp();
-  const port = Number(process.env.PORT) || 3000;
+  const port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
 
-  sequelize.sync().then(() => {
-    app.listen(port, () => console.log(`Servidor escuchando en puerto ${port}`));
-  }).catch((error) => {
+  return sequelize.sync().then(() => new Promise((resolve) => {
+    const server = app.listen(port, () => {
+      console.log(`Servidor escuchando en puerto ${port}`);
+      resolve(server);
+    });
+  })).catch((error) => {
     console.error('Error al inicializar la base de datos:', error);
     process.exit(1);
   });
+}
+
+module.exports.iniciarServidor = iniciarServidor;
+
+if (require.main === module) {
+  iniciarServidor();
 }
