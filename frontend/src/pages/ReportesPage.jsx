@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Grid,
   MenuItem,
+  Snackbar,
+  Alert,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import GridOnIcon from '@mui/icons-material/GridOn';
 import BarListChart from '../components/BarListChart';
 import GroupedBarChart from '../components/GroupedBarChart';
 import DailyLineChart from '../components/DailyLineChart';
@@ -18,6 +23,8 @@ import { listarTrabajadores } from '../api/trabajadores';
 import { listarAsignaciones } from '../api/asignaciones';
 import { listarMermas } from '../api/mermas';
 import { COLOR_POR_TIPO, ORDEN_TIPOS } from '../theme/colores';
+import { calcularCostoOperativo, calcularTasaError } from '../utils/indicadores';
+import { exportarReporteExcel, exportarReportePDF } from '../utils/exportarReportes';
 
 function agruparPorMesYTipo(registros) {
   const mesesSet = new Set();
@@ -125,11 +132,69 @@ export default function ReportesPage() {
 
   const tiposDisponibles = useMemo(() => ['TODOS', ...new Set(registros.map((r) => r.tipo_registro))], [registros]);
 
+  const resumen = useMemo(() => {
+    const activosAsignados = registros.filter((r) => r.estado === 'ASIGNADO').length;
+    const disponibles = registros.filter((r) => r.estado === 'DISPONIBLE').length;
+    const mermasPendientes = mermas.filter((m) => m.estado === 'PENDIENTE').length;
+    return {
+      registrosTotales: registros.length,
+      activosAsignados,
+      disponibles,
+      mermasPendientes,
+      mermasTotales: mermas.length,
+      tasaError: calcularTasaError({ registrosTotales: registros.length, mermasTotales: mermas.length }),
+      costoOperativo: calcularCostoOperativo({
+        registrosTotales: registros.length,
+        asignacionesTotales: asignaciones.length,
+        mermasTotales: mermas.length,
+      }),
+    };
+  }, [registros, asignaciones, mermas]);
+
+  const [mensaje, setMensaje] = useState(null);
+
+  const construirDatosExportacion = () => ({
+    generadoEn: new Date(),
+    filtros: { tipo: filtroTipo, periodoDias: periodo },
+    resumen,
+    porTipoYMes,
+    formatearMes,
+    porDia,
+    porTrabajador,
+    mermasPorTipo,
+    registrosDetalle: registrosFiltrados,
+    mermasDetalle: mermas,
+  });
+
+  const [exportando, setExportando] = useState(null);
+
+  const manejarExportarPDF = async () => {
+    setExportando('pdf');
+    try {
+      await exportarReportePDF(construirDatosExportacion());
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'No se pudo generar el PDF' });
+    } finally {
+      setExportando(null);
+    }
+  };
+
+  const manejarExportarExcel = async () => {
+    setExportando('excel');
+    try {
+      await exportarReporteExcel(construirDatosExportacion());
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'No se pudo generar el Excel' });
+    } finally {
+      setExportando(null);
+    }
+  };
+
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h5">Reportes Analíticos</Typography>
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
           <TextField select size="small" label="Tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} sx={{ minWidth: 160 }}>
             {tiposDisponibles.map((t) => (
               <MenuItem key={t} value={t}>
@@ -141,6 +206,22 @@ export default function ReportesPage() {
             <MenuItem value={7}>Últimos 7 días</MenuItem>
             <MenuItem value={30}>Últimos 30 días</MenuItem>
           </TextField>
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={manejarExportarPDF}
+            disabled={cargando || !!exportando}
+          >
+            {exportando === 'pdf' ? 'Generando…' : 'Exportar PDF'}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<GridOnIcon />}
+            onClick={manejarExportarExcel}
+            disabled={cargando || !!exportando}
+          >
+            {exportando === 'excel' ? 'Generando…' : 'Exportar Excel'}
+          </Button>
         </Stack>
       </Stack>
 
@@ -194,6 +275,12 @@ export default function ReportesPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <Snackbar open={!!mensaje} autoHideDuration={4000} onClose={() => setMensaje(null)}>
+        <Alert severity={mensaje?.tipo} onClose={() => setMensaje(null)}>
+          {mensaje?.texto}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
