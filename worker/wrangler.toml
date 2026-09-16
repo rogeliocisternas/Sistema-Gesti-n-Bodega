@@ -2,6 +2,10 @@ name = "sistema-gestion-bodega"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+# El ID de cuenta no es secreto (es un identificador público de la cuenta de Cloudflare,
+# no una credencial); se fija aquí para que `wrangler deploy` no requiera selección
+# interactiva de cuenta al correr en CI (GitHub Actions).
+account_id = "38e679e8081eaf95f0976a0e315fadda"
 
 [assets]
 directory = "../frontend/dist"

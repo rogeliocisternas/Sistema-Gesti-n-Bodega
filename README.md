@@ -129,7 +129,24 @@ más abajo) e incluye además el módulo de **Mermas**, que `backend/` (Node) to
 ## Despliegue en Cloudflare (Workers + D1)
 
 Un solo Worker sirve **frontend (assets estáticos) + backend (API `/api/*`) + base de datos (D1)**
-bajo el mismo dominio, sin necesidad de configurar CORS ni una URL de API separada.
+bajo el mismo dominio, sin necesidad de configurar CORS ni una URL de API separada. El binding a
+D1 (nombre de la base, su ID) vive en `worker/wrangler.toml` — **es código, no configuración del
+dashboard**: cada `wrangler deploy` (manual o automático) lo vuelve a aplicar tal cual está en ese
+archivo, así que nunca se puede "desconectar" salvo que se edite el archivo.
+
+### Deploy automático (CI/CD)
+
+`.github/workflows/deploy-cloudflare.yml` compila el frontend y corre `wrangler deploy` en cada
+push a `develop` que toque `worker/`, `frontend/` o el propio workflow (también se puede lanzar a
+mano desde la pestaña Actions de GitHub, botón "Run workflow"). Esto reemplaza el deploy manual y
+evita el problema que ya tuvimos una vez: un deploy viejo/roto pisando el bueno por accidente.
+
+**Paso único que debes hacer tú** (no puedo crear secretos de GitHub por ti): en el repo, ve a
+Settings → Secrets and variables → Actions → New repository secret, y crea uno llamado
+`CLOUDFLARE_API_TOKEN` con un token de Cloudflare que tenga permisos de **Workers Scripts (Edit)**
+y **D1 (Edit)** — se crea en el dashboard de Cloudflare en Mi Perfil → API Tokens → Create Token
+(plantilla "Edit Cloudflare Workers" cubre lo necesario). Sin ese secreto, el workflow va a fallar
+en el paso de deploy con un error de autenticación.
 
 ### Ya hecho (no repetir)
 

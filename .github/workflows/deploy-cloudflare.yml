@@ -1,0 +1,41 @@
+name: Deploy a Cloudflare Workers
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "worker/**"
+      - "frontend/**"
+      - ".github/workflows/deploy-cloudflare.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Compilar frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Instalar dependencias del worker
+        working-directory: worker
+        run: npm ci
+
+      - name: Desplegar Worker (assets + API + binding a D1)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: worker
+          command: deploy
