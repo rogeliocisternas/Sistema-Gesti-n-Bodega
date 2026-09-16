@@ -102,20 +102,29 @@ npm run test:coverage
 Suite de 44 pruebas (unitarias + integración) con Jest + Supertest, cobertura >90% de líneas
 (umbral mínimo configurado: 85%, alineado con el objetivo OE-7 del informe).
 
+El backend Cloudflare (`worker/`) tiene su propia suite (62 pruebas con vitest-pool-workers, ver
+más abajo) e incluye además el módulo de **Mermas**, que `backend/` (Node) todavía no tiene — ver
+"Alcance del MVP".
+
 ## Endpoints principales
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | /api/registros | Crear registro de entrada (código único automático) |
-| GET | /api/registros | Listar registros (filtros: `tipo_registro`, `estado`) |
-| GET | /api/registros/:codigo | Obtener registro por código único |
-| PUT | /api/registros/:codigo | Actualizar registro |
-| POST | /api/trabajadores | Registrar trabajador |
-| GET | /api/trabajadores | Listar trabajadores |
-| GET | /api/trabajadores/:rut | Obtener trabajador por RUT |
-| POST | /api/asignaciones | Asignar un registro disponible a un trabajador |
-| GET | /api/asignaciones/trabajador/:id | Listar asignaciones de un trabajador |
-| PATCH | /api/asignaciones/:id/devolver | Registrar devolución y liberar el registro |
+| Método | Ruta | Descripción | Disponible en |
+|---|---|---|---|
+| POST | /api/registros | Crear registro de entrada (código único automático) | ambos |
+| GET | /api/registros | Listar registros (filtros: `tipo_registro`, `estado`) | ambos |
+| GET | /api/registros/:codigo | Obtener registro por código único | ambos |
+| PUT | /api/registros/:codigo | Actualizar registro | ambos |
+| POST | /api/trabajadores | Registrar trabajador | ambos |
+| GET | /api/trabajadores | Listar trabajadores | ambos |
+| GET | /api/trabajadores/:rut | Obtener trabajador por RUT | ambos |
+| POST | /api/asignaciones | Asignar un registro disponible a un trabajador | ambos |
+| GET | /api/asignaciones | Listar todas las asignaciones (filtro: `estado`) | solo `worker/` |
+| GET | /api/asignaciones/trabajador/:id | Listar asignaciones de un trabajador | ambos |
+| PATCH | /api/asignaciones/:id/devolver | Registrar devolución y liberar el registro | ambos |
+| POST | /api/mermas | Reportar una merma sobre un registro | solo `worker/` |
+| GET | /api/mermas | Listar mermas (filtro: `estado`), con el registro incluido | solo `worker/` |
+| PATCH | /api/mermas/:id/aprobar | Aprobar una merma pendiente | solo `worker/` |
+| PATCH | /api/mermas/:id/rechazar | Rechazar una merma pendiente | solo `worker/` |
 
 ## Despliegue en Cloudflare (Workers + D1)
 
@@ -126,10 +135,36 @@ bajo el mismo dominio, sin necesidad de configurar CORS ni una URL de API separa
 
 - Se creó la base D1 `sistema-gestion-bodega-db` (`f27cc119-34b4-47b0-adb0-4dbe483d8c5d`) en tu
   cuenta de Cloudflare y se le aplicó el esquema (`worker/schema.sql`): tablas `trabajadores`,
-  `registros_entrada`, `asignaciones`. **No vuelvas a correr `npm run db:migrate:remote`** salvo
-  que quieras borrar y recrear todo desde cero (ese script hace `DROP TABLE` primero).
+  `registros_entrada`, `asignaciones`, `mermas`. **No vuelvas a correr `npm run db:migrate:remote`**
+  salvo que quieras borrar y recrear todo desde cero (ese script hace `DROP TABLE` primero).
 - `worker/wrangler.toml` ya apunta al Worker existente `sistema-gestion-bodega` (el mismo nombre
   que ya tenías en tu cuenta) y a esa base D1.
+- Ya está desplegado y funcionando: `wrangler login` quedó autenticado en esta máquina y se corrió
+  `wrangler deploy`. La base remota tiene datos de demostración cargados (ver más abajo).
+
+### Datos de demostración ya cargados en producción
+
+La base D1 remota tiene: 10 trabajadores, 170 registros (100 en estado `ASIGNADO`, 70
+`DISPONIBLE`) y 20 mermas en estado `PENDIENTE`. Se generaron con
+`worker/scripts/generar-seed.mjs` (genera SQL determinista con datos ficticios pero realistas) y
+se aplicaron con:
+
+```bash
+cd worker
+node scripts/generar-seed.mjs > scripts/seed-datos.sql
+npx wrangler d1 execute sistema-gestion-bodega-db --remote --file=./scripts/seed-datos.sql
+```
+
+`scripts/seed-datos.sql` queda versionado como registro de lo que se cargó. Para regenerar con
+datos nuevos, hay que volver a correr `generar-seed.mjs` (sobrescribe el .sql) — el script es
+aditivo (no borra nada), así que correrlo de nuevo suma otro lote de registros en vez de
+reemplazar el anterior.
+
+**Tasa de errores** y **costo operativo estimado** en el Dashboard se calculan en el frontend a
+partir de estos totales reales (ver `frontend/src/utils/indicadores.js`), usando las mismas
+tarifas del análisis económico del informe ($15 USD/hora, $3 USD por merma) — no son la
+proyección de planificación de la Sección 6.2, sino un cálculo directo sobre el volumen de datos
+actualmente en la base.
 
 ### Pasos para publicar (requiere tu login de Cloudflare, no lo tengo yo)
 
@@ -164,12 +199,25 @@ cd worker
 npm install
 npm run db:migrate:local   # aplica el esquema a la D1 simulada localmente
 npm run dev                 # wrangler dev — sirve frontend/dist + API en http://localhost:8787
-npm test                    # 51 tests (unit + integración) con vitest-pool-workers
+npm test                    # 62 tests (unit + integración) con vitest-pool-workers
 ```
 
 ## Alcance del MVP
 
-Según la delimitación del informe (Sección 4.3 y 5.2), este MVP implementa y prueba **OE-1
-(Registros de Entrada)** y **OE-2 (Asignaciones a Trabajadores)**. Los módulos de Portal Web
-público (OE-3), Reportes (OE-4) y Mermas (OE-5) quedan a nivel de diseño en el informe y no
-forman parte de este código.
+El informe (Sección 4.3 y 5.2) documenta OE-1 (Registros) y OE-2 (Asignaciones) como los únicos
+módulos construidos y probados, dejando OE-3 (Portal Web), OE-4 (Reportes) y OE-5 (Mermas) a nivel
+de diseño. El backend Cloudflare (`worker/`) fue más allá de ese alcance original:
+
+- **OE-1 y OE-2** (Registros, Asignaciones): implementados y probados en `backend/` (Node) y en
+  `worker/` (Cloudflare), con datos reales.
+- **OE-3** (Portal Web de consultas): implementado en el frontend (`PortalPublicoPage.jsx`) contra
+  los endpoints GET públicos, que ya existían en ambos backends.
+- **OE-4** (Reportes): implementado en el frontend (`ReportesPage.jsx`) como agregaciones sobre
+  los datos reales de registros/asignaciones/mermas, sin necesitar un endpoint de reportes aparte.
+- **OE-5** (Mermas): implementado de punta a punta — modelo de datos, endpoints
+  (`POST/GET /api/mermas`, aprobar/rechazar) y frontend — pero **solo en `worker/`**, no en
+  `backend/` (Node), que todavía no tiene esa tabla ni esas rutas.
+
+En resumen: `worker/` (el que está desplegado en Cloudflare) cubre los 5 objetivos específicos con
+datos reales; `backend/` (Node/Postgres, para uso local/Docker) sigue limitado a OE-1 y OE-2, tal
+como lo describe el informe original.

@@ -116,6 +116,30 @@ describe('GET /api/asignaciones/trabajador/:id', () => {
   });
 });
 
+describe('GET /api/asignaciones', () => {
+  test('lista todas las asignaciones con el registro incluido', async () => {
+    const registro = await crearRegistro();
+    const trabajador = await crearTrabajador();
+    await crearAsignacion({ registroId: registro.id, trabajadorId: trabajador.id, fecha_estimada_devolucion: '2026-12-01' });
+
+    const res = await req('/api/asignaciones');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.length).toBe(1);
+    expect(body[0].registro.codigo_unico).toBe(registro.codigo_unico);
+  });
+
+  test('filtra por estado', async () => {
+    const registro = await crearRegistro();
+    const trabajador = await crearTrabajador();
+    await crearAsignacion({ registroId: registro.id, trabajadorId: trabajador.id, fecha_estimada_devolucion: '2026-12-01' });
+
+    const res = await req('/api/asignaciones?estado=DEVUELTO');
+    const body = await res.json();
+    expect(body.length).toBe(0);
+  });
+});
+
 describe('PATCH /api/asignaciones/:id/devolver', () => {
   test('marca la asignación como DEVUELTO y libera el registro', async () => {
     const registro = await crearRegistro();

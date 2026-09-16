@@ -10,11 +10,10 @@ import {
   Typography,
 } from '@mui/material';
 import BarListChart from '../components/BarListChart';
-import DatosEjemploChip from '../components/DatosEjemploChip';
 import { listarRegistros } from '../api/registros';
 import { listarTrabajadores } from '../api/trabajadores';
-import { listarAsignacionesPorTrabajador } from '../api/asignaciones';
-import { mermasPorTipoEjemplo } from '../data/datosEjemplo';
+import { listarAsignaciones } from '../api/asignaciones';
+import { listarMermas } from '../api/mermas';
 
 function agruparPorTipo(registros) {
   const base = {};
@@ -42,42 +41,32 @@ function agruparPorPeriodo(registros, dias) {
 
 export default function ReportesPage() {
   const [registros, setRegistros] = useState([]);
-  const [porTrabajador, setPorTrabajador] = useState([]);
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [asignaciones, setAsignaciones] = useState([]);
+  const [mermas, setMermas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [periodo, setPeriodo] = useState(7);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
 
   useEffect(() => {
     let activo = true;
-
-    async function cargar() {
-      try {
-        const [listaRegistros, trabajadores] = await Promise.all([listarRegistros(), listarTrabajadores()]);
+    Promise.all([listarRegistros(), listarTrabajadores(), listarAsignaciones(), listarMermas()])
+      .then(([r, t, a, m]) => {
         if (!activo) return;
-        setRegistros(listaRegistros);
-
-        const conteos = await Promise.all(
-          trabajadores.map(async (t) => {
-            try {
-              const asignaciones = await listarAsignacionesPorTrabajador(t.id);
-              return { etiqueta: `${t.nombres} ${t.apellidos}`, valor: asignaciones.length };
-            } catch {
-              return { etiqueta: `${t.nombres} ${t.apellidos}`, valor: 0 };
-            }
-          })
-        );
-        if (activo) setPorTrabajador(conteos.filter((c) => c.valor > 0).sort((a, b) => b.valor - a.valor));
-      } catch {
+        setRegistros(r);
+        setTrabajadores(t);
+        setAsignaciones(a);
+        setMermas(m);
+      })
+      .catch(() => {
         if (activo) {
           setRegistros([]);
-          setPorTrabajador([]);
+          setTrabajadores([]);
+          setAsignaciones([]);
+          setMermas([]);
         }
-      } finally {
-        if (activo) setCargando(false);
-      }
-    }
-
-    cargar();
+      })
+      .finally(() => activo && setCargando(false));
     return () => {
       activo = false;
     };
@@ -90,6 +79,26 @@ export default function ReportesPage() {
 
   const porTipo = useMemo(() => agruparPorTipo(registrosFiltrados), [registrosFiltrados]);
   const porPeriodo = useMemo(() => agruparPorPeriodo(registrosFiltrados, periodo), [registrosFiltrados, periodo]);
+
+  const porTrabajador = useMemo(() => {
+    const base = {};
+    asignaciones.forEach((a) => {
+      base[a.trabajadorId] = (base[a.trabajadorId] || 0) + 1;
+    });
+    return trabajadores
+      .map((t) => ({ etiqueta: `${t.nombres} ${t.apellidos}`, valor: base[t.id] || 0 }))
+      .filter((d) => d.valor > 0)
+      .sort((a, b) => b.valor - a.valor);
+  }, [asignaciones, trabajadores]);
+
+  const mermasPorTipo = useMemo(() => {
+    const base = {};
+    mermas.forEach((m) => {
+      const clave = m.registro?.tipo_registro || 'SIN TIPO';
+      base[clave] = (base[clave] || 0) + 1;
+    });
+    return Object.entries(base).map(([etiqueta, valor]) => ({ etiqueta, valor }));
+  }, [mermas]);
 
   const tiposDisponibles = useMemo(() => ['TODOS', ...new Set(registros.map((r) => r.tipo_registro))], [registros]);
 
@@ -149,13 +158,10 @@ export default function ReportesPage() {
         <Grid item xs={12} md={6}>
           <Card variant="outlined">
             <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Mermas por tipo
-                </Typography>
-                <DatosEjemploChip />
-              </Stack>
-              <BarListChart datos={mermasPorTipoEjemplo} colorBarra="warning.main" />
+              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+                Mermas por tipo
+              </Typography>
+              <BarListChart datos={mermasPorTipo} colorBarra="warning.main" vacio={cargando ? 'Cargando…' : 'Sin mermas registradas'} />
             </CardContent>
           </Card>
         </Grid>

@@ -21,3 +21,7 @@ export function generarCodigoRegistro(fecha = new Date()) {
 export function generarCodigoAsignacion(fecha = new Date()) {
   return `ASIG-${generarFechaCompacta(fecha)}-${generarSufijo()}`;
 }
+
+export function generarCodigoMerma(fecha = new Date()) {
+  return `MER-${generarFechaCompacta(fecha)}-${generarSufijo()}`;
+}

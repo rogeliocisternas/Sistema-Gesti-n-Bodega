@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -9,7 +9,10 @@ import {
   DialogTitle,
   Chip,
   IconButton,
+  MenuItem,
   Paper,
+  Snackbar,
+  Alert,
   Stack,
   Table,
   TableBody,
@@ -25,21 +28,46 @@ import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import DatosEjemploChip from '../components/DatosEjemploChip';
 import { useAuth, ROLES } from '../auth/AuthContext';
-import { mermasEjemplo } from '../data/datosEjemplo';
+import { listarMermas, crearMerma, aprobarMerma, rechazarMerma } from '../api/mermas';
+import { listarRegistros } from '../api/registros';
 
 const ESTADO_COLOR = { PENDIENTE: 'warning', APROBADA: 'success', RECHAZADA: 'default' };
 
-const formInicial = { registroCodigo: '', cantidad: '', motivo: '', evidenciaUrl: null, evidenciaNombre: '' };
+const formInicial = { registroId: '', cantidad: '', motivo: '', evidenciaUrl: null, evidenciaNombre: '' };
 
 export default function MermasPage() {
   const { usuario } = useAuth();
   const puedeAprobar = usuario?.rol === ROLES.ADMIN;
 
-  const [mermas, setMermas] = useState(mermasEjemplo);
+  const [mermas, setMermas] = useState([]);
+  const [registrosDisponibles, setRegistrosDisponibles] = useState([]);
+  const [cargando, setCargando] = useState(true);
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [form, setForm] = useState(formInicial);
+  const [mensaje, setMensaje] = useState(null);
+
+  const cargarMermas = () => {
+    setCargando(true);
+    listarMermas()
+      .then(setMermas)
+      .catch(() => setMensaje({ tipo: 'error', texto: 'No se pudieron cargar las mermas' }))
+      .finally(() => setCargando(false));
+  };
+
+  useEffect(() => {
+    cargarMermas();
+  }, []);
+
+  const abrirDialogo = async () => {
+    try {
+      const registros = await listarRegistros();
+      setRegistrosDisponibles(registros);
+      setDialogAbierto(true);
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'No se pudieron cargar los registros' });
+    }
+  };
 
   const manejarArchivo = (e) => {
     const archivo = e.target.files?.[0];
@@ -47,36 +75,49 @@ export default function MermasPage() {
     setForm((prev) => ({ ...prev, evidenciaUrl: URL.createObjectURL(archivo), evidenciaNombre: archivo.name }));
   };
 
-  const manejarCrear = () => {
-    const nueva = {
-      id: Date.now(),
-      codigo: `MER-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-DEMO`,
-      registroCodigo: form.registroCodigo,
-      descripcionRegistro: '(pendiente de vincular con el registro real)',
-      cantidad: Number(form.cantidad) || 0,
-      motivo: form.motivo,
-      reportadoPor: usuario?.nombre || 'Usuario',
-      fecha: new Date().toISOString().slice(0, 10),
-      estado: 'PENDIENTE',
-      evidenciaUrl: form.evidenciaUrl,
-    };
-    setMermas((prev) => [nueva, ...prev]);
-    setForm(formInicial);
-    setDialogAbierto(false);
+  const manejarCrear = async () => {
+    try {
+      await crearMerma({
+        registroId: Number(form.registroId),
+        cantidad: Number(form.cantidad),
+        motivo: form.motivo,
+        reportado_por: usuario?.nombre || 'Usuario',
+      });
+      setForm(formInicial);
+      setDialogAbierto(false);
+      setMensaje({ tipo: 'success', texto: 'Merma reportada correctamente' });
+      cargarMermas();
+    } catch (err) {
+      const texto = err.response?.data?.error || 'Error al reportar la merma';
+      setMensaje({ tipo: 'error', texto });
+    }
   };
 
-  const cambiarEstado = (id, estado) => {
-    setMermas((prev) => prev.map((m) => (m.id === id ? { ...m, estado } : m)));
+  const manejarAprobar = async (id) => {
+    try {
+      await aprobarMerma(id);
+      setMensaje({ tipo: 'success', texto: 'Merma aprobada' });
+      cargarMermas();
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'Error al aprobar' });
+    }
+  };
+
+  const manejarRechazar = async (id) => {
+    try {
+      await rechazarMerma(id);
+      setMensaje({ tipo: 'success', texto: 'Merma rechazada' });
+      cargarMermas();
+    } catch (err) {
+      setMensaje({ tipo: 'error', texto: err.response?.data?.error || 'Error al rechazar' });
+    }
   };
 
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Typography variant="h5">Control de Mermas</Typography>
-          <DatosEjemploChip />
-        </Stack>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogAbierto(true)}>
+        <Typography variant="h5">Control de Mermas</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={abrirDialogo}>
           Reportar Merma
         </Button>
       </Stack>
@@ -107,21 +148,21 @@ export default function MermasPage() {
             {mermas.map((m) => (
               <TableRow key={m.id} hover>
                 <TableCell>
-                  <Avatar variant="rounded" src={m.evidenciaUrl || undefined} sx={{ bgcolor: 'grey.200' }}>
+                  <Avatar variant="rounded" src={m.evidencia_url || undefined} sx={{ bgcolor: 'grey.200' }}>
                     <PhotoCameraIcon fontSize="small" color="disabled" />
                   </Avatar>
                 </TableCell>
-                <TableCell>{m.codigo}</TableCell>
+                <TableCell>{m.codigo_unico}</TableCell>
                 <TableCell>
-                  {m.registroCodigo}
+                  {m.registro?.codigo_unico}
                   <Typography variant="caption" display="block" color="text.secondary">
-                    {m.descripcionRegistro}
+                    {m.registro?.descripcion}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">{m.cantidad}</TableCell>
                 <TableCell>{m.motivo}</TableCell>
-                <TableCell>{m.reportadoPor}</TableCell>
-                <TableCell>{m.fecha}</TableCell>
+                <TableCell>{m.reportado_por}</TableCell>
+                <TableCell>{new Date(m.createdAt).toLocaleDateString('es-CL')}</TableCell>
                 <TableCell>
                   <Chip size="small" label={m.estado} color={ESTADO_COLOR[m.estado]} />
                 </TableCell>
@@ -130,12 +171,12 @@ export default function MermasPage() {
                     {m.estado === 'PENDIENTE' && (
                       <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                         <Tooltip title="Aprobar">
-                          <IconButton size="small" color="success" onClick={() => cambiarEstado(m.id, 'APROBADA')}>
+                          <IconButton size="small" color="success" onClick={() => manejarAprobar(m.id)}>
                             <CheckCircleIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Rechazar">
-                          <IconButton size="small" color="error" onClick={() => cambiarEstado(m.id, 'RECHAZADA')}>
+                          <IconButton size="small" color="error" onClick={() => manejarRechazar(m.id)}>
                             <CancelIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -145,6 +186,13 @@ export default function MermasPage() {
                 )}
               </TableRow>
             ))}
+            {!cargando && mermas.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={puedeAprobar ? 9 : 8} align="center">
+                  Sin mermas registradas
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -154,11 +202,17 @@ export default function MermasPage() {
         <DialogContent>
           <Stack spacing={2} mt={1}>
             <TextField
-              label="Código del registro afectado"
-              placeholder="REG-20260915-ABCDE"
-              value={form.registroCodigo}
-              onChange={(e) => setForm({ ...form, registroCodigo: e.target.value })}
-            />
+              select
+              label="Registro afectado"
+              value={form.registroId}
+              onChange={(e) => setForm({ ...form, registroId: e.target.value })}
+            >
+              {registrosDisponibles.map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.codigo_unico} — {r.descripcion}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="Cantidad"
               type="number"
@@ -186,17 +240,23 @@ export default function MermasPage() {
             )}
             <Typography variant="caption" color="text.secondary">
               Prototipo: la foto solo se previsualiza en el navegador, no se sube a ningún
-              almacenamiento todavía.
+              almacenamiento todavía (el registro de la merma en la base de datos sí es real).
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogAbierto(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={manejarCrear} disabled={!form.registroCodigo || !form.motivo}>
+          <Button variant="contained" onClick={manejarCrear} disabled={!form.registroId || !form.motivo || !form.cantidad}>
             Enviar reporte
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={!!mensaje} autoHideDuration={4000} onClose={() => setMensaje(null)}>
+        <Alert severity={mensaje?.tipo} onClose={() => setMensaje(null)}>
+          {mensaje?.texto}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

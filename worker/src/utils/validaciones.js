@@ -138,3 +138,35 @@ export function validarAsignacion(body) {
     },
   };
 }
+
+export function validarMerma(body) {
+  if (typeof body !== 'object' || body === null) {
+    return { error: 'Cuerpo de la solicitud inválido' };
+  }
+  const { registroId, cantidad, motivo, reportado_por, evidencia_url } = body;
+
+  const registroIdNum = Number(registroId);
+  if (!Number.isInteger(registroIdNum) || registroIdNum <= 0) {
+    return { error: '"registroId" debe ser un entero positivo' };
+  }
+  const cantidadNum = Number(cantidad);
+  if (!Number.isFinite(cantidadNum) || cantidadNum <= 0) {
+    return { error: '"cantidad" debe ser un número positivo' };
+  }
+  if (typeof motivo !== 'string' || motivo.trim().length < 3) {
+    return { error: '"motivo" es requerido (mínimo 3 caracteres)' };
+  }
+  if (typeof reportado_por !== 'string' || reportado_por.trim().length < 2) {
+    return { error: '"reportado_por" es requerido' };
+  }
+
+  return {
+    value: {
+      registroId: registroIdNum,
+      cantidad: cantidadNum,
+      motivo: motivo.trim(),
+      reportado_por: reportado_por.trim(),
+      evidencia_url: evidencia_url && String(evidencia_url).trim() !== '' ? String(evidencia_url).trim() : null,
+    },
+  };
+}

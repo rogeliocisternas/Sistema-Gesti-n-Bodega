@@ -4,6 +4,58 @@ import { validarAsignacion } from '../utils/validaciones';
 
 const asignaciones = new Hono();
 
+function serializarConRegistro(fila) {
+  return {
+    id: fila.id,
+    codigo_unico: fila.codigo_unico,
+    registroId: fila.registroId,
+    trabajadorId: fila.trabajadorId,
+    fecha_asignacion: fila.fecha_asignacion,
+    fecha_estimada_devolucion: fila.fecha_estimada_devolucion,
+    fecha_devolucion_real: fila.fecha_devolucion_real,
+    estado: fila.estado,
+    observaciones: fila.observaciones,
+    createdAt: fila.createdAt,
+    updatedAt: fila.updatedAt,
+    registro: {
+      id: fila.registroId,
+      codigo_unico: fila.reg_codigo_unico,
+      tipo_registro: fila.reg_tipo_registro,
+      descripcion: fila.reg_descripcion,
+      cantidad: fila.reg_cantidad,
+      unidad_medida: fila.reg_unidad_medida,
+      estado: fila.reg_estado,
+    },
+  };
+}
+
+const SELECT_CON_REGISTRO = `
+  SELECT
+    a.id, a.codigo_unico, a.registroId, a.trabajadorId, a.fecha_asignacion,
+    a.fecha_estimada_devolucion, a.fecha_devolucion_real, a.estado, a.observaciones,
+    a.createdAt, a.updatedAt,
+    r.codigo_unico AS reg_codigo_unico, r.tipo_registro AS reg_tipo_registro,
+    r.descripcion AS reg_descripcion, r.cantidad AS reg_cantidad,
+    r.unidad_medida AS reg_unidad_medida, r.estado AS reg_estado
+  FROM asignaciones a
+  JOIN registros_entrada r ON r.id = a.registroId`;
+
+asignaciones.get('/', async (c) => {
+  const estado = c.req.query('estado');
+  let sql = `${SELECT_CON_REGISTRO} WHERE 1 = 1`;
+  const params = [];
+  if (estado) {
+    sql += ' AND a.estado = ?';
+    params.push(estado);
+  }
+  sql += ' ORDER BY a.createdAt DESC';
+
+  const { results } = await c.env.DB.prepare(sql)
+    .bind(...params)
+    .all();
+  return c.json(results.map(serializarConRegistro));
+});
+
 asignaciones.post('/', async (c) => {
   const body = await c.req.json().catch(() => null);
   const { error, value } = validarAsignacion(body);
@@ -48,46 +100,11 @@ asignaciones.get('/trabajador/:id', async (c) => {
   const trabajador = await c.env.DB.prepare('SELECT id FROM trabajadores WHERE id = ?').bind(trabajadorId).first();
   if (!trabajador) return c.json({ error: 'Trabajador no encontrado' }, 404);
 
-  const { results } = await c.env.DB.prepare(
-    `SELECT
-       a.id, a.codigo_unico, a.registroId, a.trabajadorId, a.fecha_asignacion,
-       a.fecha_estimada_devolucion, a.fecha_devolucion_real, a.estado, a.observaciones,
-       a.createdAt, a.updatedAt,
-       r.codigo_unico AS reg_codigo_unico, r.tipo_registro AS reg_tipo_registro,
-       r.descripcion AS reg_descripcion, r.cantidad AS reg_cantidad,
-       r.unidad_medida AS reg_unidad_medida, r.estado AS reg_estado
-     FROM asignaciones a
-     JOIN registros_entrada r ON r.id = a.registroId
-     WHERE a.trabajadorId = ?
-     ORDER BY a.createdAt DESC`
-  )
+  const { results } = await c.env.DB.prepare(`${SELECT_CON_REGISTRO} WHERE a.trabajadorId = ? ORDER BY a.createdAt DESC`)
     .bind(trabajadorId)
     .all();
 
-  const conRegistro = results.map((fila) => ({
-    id: fila.id,
-    codigo_unico: fila.codigo_unico,
-    registroId: fila.registroId,
-    trabajadorId: fila.trabajadorId,
-    fecha_asignacion: fila.fecha_asignacion,
-    fecha_estimada_devolucion: fila.fecha_estimada_devolucion,
-    fecha_devolucion_real: fila.fecha_devolucion_real,
-    estado: fila.estado,
-    observaciones: fila.observaciones,
-    createdAt: fila.createdAt,
-    updatedAt: fila.updatedAt,
-    registro: {
-      id: fila.registroId,
-      codigo_unico: fila.reg_codigo_unico,
-      tipo_registro: fila.reg_tipo_registro,
-      descripcion: fila.reg_descripcion,
-      cantidad: fila.reg_cantidad,
-      unidad_medida: fila.reg_unidad_medida,
-      estado: fila.reg_estado,
-    },
-  }));
-
-  return c.json(conRegistro);
+  return c.json(results.map(serializarConRegistro));
 });
 
 asignaciones.patch('/:id/devolver', async (c) => {

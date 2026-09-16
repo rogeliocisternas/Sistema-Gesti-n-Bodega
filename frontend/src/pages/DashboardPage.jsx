@@ -8,19 +8,38 @@ import RuleIcon from '@mui/icons-material/Rule';
 import SavingsIcon from '@mui/icons-material/Savings';
 import StatCard from '../components/StatCard';
 import BarListChart from '../components/BarListChart';
-import DatosEjemploChip from '../components/DatosEjemploChip';
 import { listarRegistros } from '../api/registros';
-import { indicadoresInforme, mermasPorTipoEjemplo } from '../data/datosEjemplo';
+import { listarAsignaciones } from '../api/asignaciones';
+import { listarMermas } from '../api/mermas';
+import { indicadoresInforme } from '../data/datosEjemplo';
+import { calcularCostoOperativo, calcularTasaError } from '../utils/indicadores';
 
 export default function DashboardPage() {
   const [registros, setRegistros] = useState([]);
+  const [asignaciones, setAsignaciones] = useState([]);
+  const [mermas, setMermas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    listarRegistros()
-      .then(setRegistros)
-      .catch(() => setRegistros([]))
-      .finally(() => setCargando(false));
+    let activo = true;
+    Promise.all([listarRegistros(), listarAsignaciones(), listarMermas()])
+      .then(([r, a, m]) => {
+        if (!activo) return;
+        setRegistros(r);
+        setAsignaciones(a);
+        setMermas(m);
+      })
+      .catch(() => {
+        if (activo) {
+          setRegistros([]);
+          setAsignaciones([]);
+          setMermas([]);
+        }
+      })
+      .finally(() => activo && setCargando(false));
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const conteoPorEstado = useMemo(() => {
@@ -39,11 +58,36 @@ export default function DashboardPage() {
     return Object.entries(base).map(([etiqueta, valor]) => ({ etiqueta, valor }));
   }, [registros]);
 
+  const mermasPendientes = useMemo(() => mermas.filter((m) => m.estado === 'PENDIENTE'), [mermas]);
+
+  const mermasPorTipo = useMemo(() => {
+    const base = {};
+    mermas.forEach((m) => {
+      const clave = m.registro?.tipo_registro || 'SIN TIPO';
+      base[clave] = (base[clave] || 0) + 1;
+    });
+    return Object.entries(base).map(([etiqueta, valor]) => ({ etiqueta, valor }));
+  }, [mermas]);
+
+  const tasaError = useMemo(
+    () => calcularTasaError({ registrosTotales: registros.length, mermasTotales: mermas.length }),
+    [registros, mermas]
+  );
+
+  const costoOperativo = useMemo(
+    () =>
+      calcularCostoOperativo({
+        registrosTotales: registros.length,
+        asignacionesTotales: asignaciones.length,
+        mermasTotales: mermas.length,
+      }),
+    [registros, asignaciones, mermas]
+  );
+
   return (
     <Box>
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
         <Typography variant="h5">Dashboard Principal</Typography>
-        <DatosEjemploChip />
       </Stack>
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -69,8 +113,8 @@ export default function DashboardPage() {
           <StatCard
             icono={<WarningAmberIcon />}
             etiqueta="Mermas pendientes"
-            valor={mermasPorTipoEjemplo.reduce((acc, m) => acc + m.valor, 0)}
-            detalle="Ejemplo — módulo de Mermas"
+            valor={cargando ? '…' : mermasPendientes.length}
+            detalle="Dato real (GET /api/mermas)"
             color="warning.main"
           />
         </Grid>
@@ -80,6 +124,7 @@ export default function DashboardPage() {
             etiqueta="Tiempo por registro"
             valor={`${indicadoresInforme.tiempoPorRegistroSistema} min`}
             delta={`-${indicadoresInforme.tiempoPorRegistroActual - indicadoresInforme.tiempoPorRegistroSistema} min vs. proceso manual`}
+            detalle="Meta de diseño (RF-01 / OE-1)"
             color="success.main"
           />
         </Grid>
@@ -90,17 +135,17 @@ export default function DashboardPage() {
           <StatCard
             icono={<RuleIcon />}
             etiqueta="Tasa de errores"
-            valor={`< ${indicadoresInforme.tasaErroresSistema}%`}
-            delta={`-${indicadoresInforme.tasaErroresActual - indicadoresInforme.tasaErroresSistema} pp vs. manual`}
+            valor={cargando ? '…' : `${tasaError.toFixed(1)}%`}
+            detalle="Mermas / registros totales (real)"
             color="info.main"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             icono={<SavingsIcon />}
-            etiqueta="Costo anual operativo"
-            valor={`$${indicadoresInforme.costoAnualSistema.toLocaleString('es-CL')}`}
-            delta={`-$${(indicadoresInforme.costoAnualActual - indicadoresInforme.costoAnualSistema).toLocaleString('es-CL')} vs. manual`}
+            etiqueta="Costo operativo estimado"
+            valor={cargando ? '…' : `$${costoOperativo.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`}
+            detalle="Según volumen real en la base de datos"
             color="success.dark"
           />
         </Grid>
@@ -120,13 +165,10 @@ export default function DashboardPage() {
         <Grid item xs={12} md={6}>
           <Card variant="outlined">
             <CardContent>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Mermas por tipo (últimos 30 días)
-                </Typography>
-                <DatosEjemploChip />
-              </Stack>
-              <BarListChart datos={mermasPorTipoEjemplo} colorBarra="warning.main" />
+              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
+                Mermas por tipo
+              </Typography>
+              <BarListChart datos={mermasPorTipo} colorBarra="warning.main" vacio={cargando ? 'Cargando…' : 'Sin mermas registradas'} />
             </CardContent>
           </Card>
         </Grid>

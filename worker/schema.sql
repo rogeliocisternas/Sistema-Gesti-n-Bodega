@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS mermas;
 DROP TABLE IF EXISTS asignaciones;
 DROP TABLE IF EXISTS registros_entrada;
 DROP TABLE IF EXISTS trabajadores;
@@ -43,3 +44,18 @@ CREATE TABLE asignaciones (
 
 CREATE INDEX idx_asignaciones_trabajador ON asignaciones(trabajadorId);
 CREATE INDEX idx_asignaciones_registro ON asignaciones(registroId);
+
+CREATE TABLE mermas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo_unico TEXT NOT NULL UNIQUE,
+  registroId INTEGER NOT NULL REFERENCES registros_entrada(id),
+  cantidad REAL NOT NULL CHECK (cantidad > 0),
+  motivo TEXT NOT NULL,
+  reportado_por TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE','APROBADA','RECHAZADA')),
+  evidencia_url TEXT,
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX idx_mermas_registro ON mermas(registroId);
