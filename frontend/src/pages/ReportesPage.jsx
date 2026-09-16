@@ -10,30 +10,53 @@ import {
   Typography,
 } from '@mui/material';
 import BarListChart from '../components/BarListChart';
+import GroupedBarChart from '../components/GroupedBarChart';
+import DailyLineChart from '../components/DailyLineChart';
+import PieChart from '../components/PieChart';
 import { listarRegistros } from '../api/registros';
 import { listarTrabajadores } from '../api/trabajadores';
 import { listarAsignaciones } from '../api/asignaciones';
 import { listarMermas } from '../api/mermas';
+import { COLOR_POR_TIPO, ORDEN_TIPOS } from '../theme/colores';
 
-function agruparPorTipo(registros) {
-  const base = {};
+function agruparPorMesYTipo(registros) {
+  const mesesSet = new Set();
+  const porMesTipo = {};
   registros.forEach((r) => {
-    base[r.tipo_registro] = (base[r.tipo_registro] || 0) + 1;
+    const mes = r.createdAt?.slice(0, 7); // YYYY-MM
+    if (!mes) return;
+    mesesSet.add(mes);
+    porMesTipo[mes] = porMesTipo[mes] || {};
+    porMesTipo[mes][r.tipo_registro] = (porMesTipo[mes][r.tipo_registro] || 0) + 1;
   });
-  return Object.entries(base).map(([etiqueta, valor]) => ({ etiqueta, valor }));
+  const meses = Array.from(mesesSet).sort();
+  const series = ORDEN_TIPOS.map((tipo) => ({
+    nombre: tipo,
+    color: COLOR_POR_TIPO[tipo],
+    valores: meses.map((mes) => porMesTipo[mes]?.[tipo] || 0),
+  }));
+  return { meses, series };
 }
 
-function agruparPorPeriodo(registros, dias) {
+function formatearMes(mesStr) {
+  const [anio, mes] = mesStr.split('-').map(Number);
+  const etiqueta = new Date(anio, mes - 1, 1).toLocaleDateString('es-CL', { month: 'short', year: 'numeric' });
+  return etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1);
+}
+
+function agruparPorDia(registros, dias) {
   const hoy = new Date();
   const cubos = [];
   for (let i = dias - 1; i >= 0; i -= 1) {
     const fecha = new Date(hoy);
     fecha.setDate(fecha.getDate() - i);
-    cubos.push({ etiqueta: fecha.toISOString().slice(5, 10), valor: 0 });
+    const iso = fecha.toISOString().slice(0, 10);
+    const etiqueta = `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    cubos.push({ fecha: iso, etiqueta, valor: 0 });
   }
   registros.forEach((r) => {
-    const clave = r.createdAt?.slice(5, 10);
-    const cubo = cubos.find((c) => c.etiqueta === clave);
+    const fechaKey = r.createdAt?.slice(0, 10);
+    const cubo = cubos.find((c) => c.fecha === fechaKey);
     if (cubo) cubo.valor += 1;
   });
   return cubos;
@@ -77,8 +100,8 @@ export default function ReportesPage() {
     [registros, filtroTipo]
   );
 
-  const porTipo = useMemo(() => agruparPorTipo(registrosFiltrados), [registrosFiltrados]);
-  const porPeriodo = useMemo(() => agruparPorPeriodo(registrosFiltrados, periodo), [registrosFiltrados, periodo]);
+  const porTipoYMes = useMemo(() => agruparPorMesYTipo(registrosFiltrados), [registrosFiltrados]);
+  const porDia = useMemo(() => agruparPorDia(registrosFiltrados, periodo), [registrosFiltrados, periodo]);
 
   const porTrabajador = useMemo(() => {
     const base = {};
@@ -97,7 +120,7 @@ export default function ReportesPage() {
       const clave = m.registro?.tipo_registro || 'SIN TIPO';
       base[clave] = (base[clave] || 0) + 1;
     });
-    return Object.entries(base).map(([etiqueta, valor]) => ({ etiqueta, valor }));
+    return ORDEN_TIPOS.map((tipo) => ({ etiqueta: tipo, valor: base[tipo] || 0, color: COLOR_POR_TIPO[tipo] }));
   }, [mermas]);
 
   const tiposDisponibles = useMemo(() => ['TODOS', ...new Set(registros.map((r) => r.tipo_registro))], [registros]);
@@ -126,9 +149,14 @@ export default function ReportesPage() {
           <Card variant="outlined">
             <CardContent>
               <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
-                Registros por tipo
+                Registros por tipo, por mes
               </Typography>
-              <BarListChart datos={porTipo} vacio={cargando ? 'Cargando…' : 'Sin registros'} />
+              <GroupedBarChart
+                meses={porTipoYMes.meses}
+                series={porTipoYMes.series}
+                formatearCategoria={formatearMes}
+                vacio={cargando ? 'Cargando…' : 'Sin registros'}
+              />
             </CardContent>
           </Card>
         </Grid>
@@ -139,7 +167,7 @@ export default function ReportesPage() {
               <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
                 Registros creados por día ({periodo === 7 ? 'últimos 7 días' : 'últimos 30 días'})
               </Typography>
-              <BarListChart datos={porPeriodo} colorBarra="secondary.main" vacio={cargando ? 'Cargando…' : 'Sin registros'} />
+              <DailyLineChart datos={porDia} vacio={cargando ? 'Cargando…' : 'Sin registros'} />
             </CardContent>
           </Card>
         </Grid>
@@ -161,7 +189,7 @@ export default function ReportesPage() {
               <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 2 }}>
                 Mermas por tipo
               </Typography>
-              <BarListChart datos={mermasPorTipo} colorBarra="warning.main" vacio={cargando ? 'Cargando…' : 'Sin mermas registradas'} />
+              <PieChart datos={mermasPorTipo} vacio={cargando ? 'Cargando…' : 'Sin mermas registradas'} />
             </CardContent>
           </Card>
         </Grid>
