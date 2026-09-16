@@ -98,6 +98,7 @@ export default function DashboardPage() {
             valor={cargando ? '…' : registros.length}
             detalle="Dato real (GET /api/registros)"
             color="primary.main"
+            to="/registros"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -107,6 +108,7 @@ export default function DashboardPage() {
             valor={cargando ? '…' : conteoPorEstado.ASIGNADO}
             detalle={`${cargando ? '…' : conteoPorEstado.DISPONIBLE} disponibles`}
             color="secondary.main"
+            to="/asignaciones"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -116,6 +118,7 @@ export default function DashboardPage() {
             valor={cargando ? '…' : mermasPendientes.length}
             detalle="Dato real (GET /api/mermas)"
             color="warning.main"
+            to="/mermas"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -126,6 +129,7 @@ export default function DashboardPage() {
             delta={`-${indicadoresInforme.tiempoPorRegistroActual - indicadoresInforme.tiempoPorRegistroSistema} min vs. proceso manual`}
             detalle="Meta de diseño (RF-01 / OE-1)"
             color="success.main"
+            to="/registros"
           />
         </Grid>
       </Grid>
@@ -138,6 +142,7 @@ export default function DashboardPage() {
             valor={cargando ? '…' : `${tasaError.toFixed(1)}%`}
             detalle="Mermas / registros totales (real)"
             color="info.main"
+            to="/reportes"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -147,6 +152,7 @@ export default function DashboardPage() {
             valor={cargando ? '…' : `$${costoOperativo.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`}
             detalle="Según volumen real en la base de datos"
             color="success.dark"
+            to="/reportes"
           />
         </Grid>
       </Grid>
