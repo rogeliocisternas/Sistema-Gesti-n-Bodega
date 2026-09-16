@@ -1,0 +1,14 @@
+name = "sistema-gestion-bodega"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sistema-gestion-bodega-db"
+database_id = "f27cc119-34b4-47b0-adb0-4dbe483d8c5d"

@@ -1,0 +1,21 @@
+{
+  "name": "sistema-gestion-bodega-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 execute sistema-gestion-bodega-db --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute sistema-gestion-bodega-db --remote --file=./schema.sql",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.5.36",
+    "vitest": "~2.1.9",
+    "wrangler": "^3.99.0"
+  }
+}
