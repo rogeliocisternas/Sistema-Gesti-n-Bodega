@@ -9,7 +9,19 @@ import AsignacionesPage from './pages/AsignacionesPage';
 import MermasPage from './pages/MermasPage';
 import ReportesPage from './pages/ReportesPage';
 import UsuariosPage from './pages/UsuariosPage';
-import { ROLES, RequireAuth } from './auth/AuthContext';
+import MisAsignacionesPage from './pages/MisAsignacionesPage';
+import { ROLES, RequireAuth, rutaInicioPara, useAuth } from './auth/AuthContext';
+
+const ROLES_ADMINISTRATIVOS = [ROLES.ADMIN, ROLES.OPERADOR];
+
+function InicioRedirect() {
+  const { usuario } = useAuth();
+  return <Navigate to={rutaInicioPara(usuario?.rol)} replace />;
+}
+
+function Protegida({ rolesPermitidos, children }) {
+  return <RequireAuth rolesPermitidos={rolesPermitidos}>{children}</RequireAuth>;
+}
 
 export default function App() {
   return (
@@ -24,22 +36,72 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/registros" element={<RegistrosPage />} />
-        <Route path="/trabajadores" element={<TrabajadoresPage />} />
-        <Route path="/asignaciones" element={<AsignacionesPage />} />
-        <Route path="/mermas" element={<MermasPage />} />
-        <Route path="/reportes" element={<ReportesPage />} />
+        <Route path="/" element={<InicioRedirect />} />
+        <Route
+          path="/dashboard"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <DashboardPage />
+            </Protegida>
+          }
+        />
+        <Route
+          path="/registros"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <RegistrosPage />
+            </Protegida>
+          }
+        />
+        <Route
+          path="/trabajadores"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <TrabajadoresPage />
+            </Protegida>
+          }
+        />
+        <Route
+          path="/asignaciones"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <AsignacionesPage />
+            </Protegida>
+          }
+        />
+        <Route
+          path="/mermas"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <MermasPage />
+            </Protegida>
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            <Protegida rolesPermitidos={ROLES_ADMINISTRATIVOS}>
+              <ReportesPage />
+            </Protegida>
+          }
+        />
         <Route
           path="/usuarios"
           element={
-            <RequireAuth rolesPermitidos={[ROLES.ADMIN]}>
+            <Protegida rolesPermitidos={[ROLES.ADMIN]}>
               <UsuariosPage />
-            </RequireAuth>
+            </Protegida>
           }
         />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/mis-asignaciones"
+          element={
+            <Protegida rolesPermitidos={[ROLES.TRABAJADOR]}>
+              <MisAsignacionesPage />
+            </Protegida>
+          }
+        />
+        <Route path="*" element={<InicioRedirect />} />
       </Route>
     </Routes>
   );

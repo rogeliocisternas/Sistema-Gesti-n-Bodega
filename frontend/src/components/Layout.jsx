@@ -24,6 +24,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import PublicIcon from '@mui/icons-material/Public';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
@@ -31,14 +32,17 @@ import { ROLES, ROLE_LABELS, useAuth } from '../auth/AuthContext';
 
 const DRAWER_WIDTH = 248;
 
+const ROLES_ADMINISTRATIVOS = [ROLES.ADMIN, ROLES.OPERADOR];
+
 const NAV_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
-  { label: 'Registros de Entrada', path: '/registros', icon: <Inventory2Icon /> },
-  { label: 'Trabajadores', path: '/trabajadores', icon: <PeopleIcon /> },
-  { label: 'Asignaciones', path: '/asignaciones', icon: <AssignmentIcon /> },
-  { label: 'Mermas', path: '/mermas', icon: <WarningAmberIcon /> },
-  { label: 'Reportes', path: '/reportes', icon: <BarChartIcon /> },
+  { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
+  { label: 'Registros de Entrada', path: '/registros', icon: <Inventory2Icon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
+  { label: 'Trabajadores', path: '/trabajadores', icon: <PeopleIcon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
+  { label: 'Asignaciones', path: '/asignaciones', icon: <AssignmentIcon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
+  { label: 'Mermas', path: '/mermas', icon: <WarningAmberIcon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
+  { label: 'Reportes', path: '/reportes', icon: <BarChartIcon />, rolesPermitidos: ROLES_ADMINISTRATIVOS },
   { label: 'Usuarios', path: '/usuarios', icon: <AdminPanelSettingsIcon />, rolesPermitidos: [ROLES.ADMIN] },
+  { label: 'Mis Asignaciones', path: '/mis-asignaciones', icon: <AssignmentIndIcon />, rolesPermitidos: [ROLES.TRABAJADOR] },
 ];
 
 export default function Layout() {

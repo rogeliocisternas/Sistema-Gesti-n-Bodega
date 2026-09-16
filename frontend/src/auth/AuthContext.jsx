@@ -7,11 +7,13 @@ const STORAGE_KEY = 'bodega_auth_demo';
 export const ROLES = {
   ADMIN: 'ADMIN',
   OPERADOR: 'OPERADOR',
+  TRABAJADOR: 'TRABAJADOR',
 };
 
 export const ROLE_LABELS = {
   ADMIN: 'Administrador',
   OPERADOR: 'Operador',
+  TRABAJADOR: 'Trabajador',
 };
 
 function leerSesionGuardada() {
@@ -32,9 +34,11 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       usuario,
-      iniciarSesion: ({ nombre, rol }) => {
+      // trabajadorId (opcional): vincula la sesión con una fila real de la tabla trabajadores,
+      // para el rol Trabajador (autoservicio) — ver LoginPage y MisAsignacionesPage.
+      iniciarSesion: ({ nombre, rol, trabajadorId = null }) => {
         const token = `demo.${btoa(unescape(encodeURIComponent(`${nombre}:${rol}:${Date.now()}`)))}.mock`;
-        const sesion = { nombre, rol, token };
+        const sesion = { nombre, rol, trabajadorId, token };
         setUsuario(sesion);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sesion));
@@ -63,6 +67,12 @@ export function useAuth() {
   return ctx;
 }
 
+// Página de inicio por rol: Trabajador aterriza en su vista de autoservicio,
+// el resto en el dashboard administrativo.
+export function rutaInicioPara(rol) {
+  return rol === ROLES.TRABAJADOR ? '/mis-asignaciones' : '/dashboard';
+}
+
 export function RequireAuth({ children, rolesPermitidos }) {
   const { usuario } = useAuth();
   const location = useLocation();
@@ -71,7 +81,7 @@ export function RequireAuth({ children, rolesPermitidos }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={rutaInicioPara(usuario.rol)} replace />;
   }
   return children;
 }

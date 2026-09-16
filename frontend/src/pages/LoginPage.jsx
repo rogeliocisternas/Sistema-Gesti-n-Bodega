@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -13,7 +13,8 @@ import {
   Typography,
 } from '@mui/material';
 import InventoryIcon from '@mui/icons-material/Inventory';
-import { ROLES, ROLE_LABELS, useAuth } from '../auth/AuthContext';
+import { ROLES, ROLE_LABELS, rutaInicioPara, useAuth } from '../auth/AuthContext';
+import { listarTrabajadores } from '../api/trabajadores';
 
 export default function LoginPage() {
   const { iniciarSesion } = useAuth();
@@ -23,19 +24,52 @@ export default function LoginPage() {
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState(ROLES.ADMIN);
+  const [trabajadorId, setTrabajadorId] = useState('');
+  const [trabajadores, setTrabajadores] = useState([]);
+  const [cargandoTrabajadores, setCargandoTrabajadores] = useState(false);
   const [error, setError] = useState('');
 
-  const destino = location.state?.from?.pathname || '/dashboard';
+  const esTrabajador = rol === ROLES.TRABAJADOR;
+
+  // El rol Trabajador no tiene un formulario de "usuario" propio: se identifica eligiéndose
+  // a sí mismo de la lista real de trabajadores (tabla trabajadores), que es la única
+  // identidad real que existe hoy — no hay una tabla de cuentas de usuario todavía.
+  useEffect(() => {
+    if (!esTrabajador || trabajadores.length > 0) return;
+    setCargandoTrabajadores(true);
+    listarTrabajadores()
+      .then(setTrabajadores)
+      .catch(() => setError('No se pudo cargar la lista de trabajadores'))
+      .finally(() => setCargandoTrabajadores(false));
+  }, [esTrabajador, trabajadores.length]);
 
   const manejarSubmit = (e) => {
     e.preventDefault();
-    if (!usuario.trim() || !password.trim()) {
+
+    if (!password.trim()) {
+      setError('Ingresa tu contraseña');
+      return;
+    }
+
+    if (esTrabajador) {
+      const trabajador = trabajadores.find((t) => String(t.id) === String(trabajadorId));
+      if (!trabajador) {
+        setError('Selecciona quién eres de la lista');
+        return;
+      }
+      setError('');
+      iniciarSesion({ nombre: `${trabajador.nombres} ${trabajador.apellidos}`, rol, trabajadorId: trabajador.id });
+      navigate(location.state?.from?.pathname || rutaInicioPara(rol), { replace: true });
+      return;
+    }
+
+    if (!usuario.trim()) {
       setError('Ingresa usuario y contraseña');
       return;
     }
     setError('');
     iniciarSesion({ nombre: usuario.trim(), rol });
-    navigate(destino, { replace: true });
+    navigate(location.state?.from?.pathname || rutaInicioPara(rol), { replace: true });
   };
 
   return (
@@ -79,12 +113,48 @@ export default function LoginPage() {
               {error && <Alert severity="error">{error}</Alert>}
 
               <TextField
-                label="Usuario o email"
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                autoFocus
+                select
+                label="Rol"
+                value={rol}
+                onChange={(e) => {
+                  setRol(e.target.value);
+                  setError('');
+                }}
                 fullWidth
-              />
+              >
+                {Object.values(ROLES).map((r) => (
+                  <MenuItem key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              {esTrabajador ? (
+                <TextField
+                  select
+                  label="¿Quién eres?"
+                  value={trabajadorId}
+                  onChange={(e) => setTrabajadorId(e.target.value)}
+                  fullWidth
+                  disabled={cargandoTrabajadores}
+                  helperText={cargandoTrabajadores ? 'Cargando trabajadores…' : ' '}
+                >
+                  {trabajadores.map((t) => (
+                    <MenuItem key={t.id} value={t.id}>
+                      {t.nombres} {t.apellidos} — {t.rut}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <TextField
+                  label="Usuario o email"
+                  value={usuario}
+                  onChange={(e) => setUsuario(e.target.value)}
+                  autoFocus
+                  fullWidth
+                />
+              )}
+
               <TextField
                 label="Contraseña"
                 type="password"
@@ -92,13 +162,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 fullWidth
               />
-              <TextField select label="Rol" value={rol} onChange={(e) => setRol(e.target.value)} fullWidth>
-                {Object.values(ROLES).map((r) => (
-                  <MenuItem key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </MenuItem>
-                ))}
-              </TextField>
 
               <Button type="submit" variant="contained" size="large" fullWidth>
                 Iniciar sesión
@@ -107,8 +170,9 @@ export default function LoginPage() {
           </Box>
 
           <Alert severity="info" variant="outlined" sx={{ mt: 3 }}>
-            Modo demostración: cualquier usuario/contraseña es válido. El rol elegido determina qué
-            secciones ves (RBAC de prototipo, sin backend de autenticación real aún).
+            {esTrabajador
+              ? 'Modo demostración: cualquier contraseña es válida. Te identificas eligiéndote de la lista real de trabajadores.'
+              : 'Modo demostración: cualquier usuario/contraseña es válido. El rol elegido determina qué secciones ves (RBAC de prototipo, sin backend de autenticación real aún).'}
           </Alert>
 
           <Typography variant="body2" textAlign="center" sx={{ mt: 3 }}>
